@@ -177,7 +177,19 @@ class TS3Bot:
         steam_id = self.database.get_steam_id(client.client_uid)
         stammspieler_url = f"{self._settings.api.base_url}/stammspieler/{steam_id}"
         response = requests.get(stammspieler_url, timeout=10)
-        stammspieler_status = bool(json.loads(response.text)['stammspieler'])
+        data = json.loads(response.text)
+        if 'stammspieler' not in data:
+            logger.warning("'stammspieler' key missing from API response for %s (url: %s), defaulting to False", steam_id, stammspieler_url)
+            await self.ts3conn.sendtextmessage(
+                targetmode=1,
+                target=client.client_id,
+                msg=(
+                    f"Hallo {client.client_name}, dein Stammspieler-Status konnte leider "
+                    f"nicht ermittelt werden. Falls dein Status nicht korrekt ist, "
+                    f"entschuldige bitte - wir arbeiten daran!"
+                ),
+            )
+        stammspieler_status = bool(data.get('stammspieler', False))
 
         client_is_in_group = await self.is_client_in_group(client.client_id, "Stammspieler")
 
