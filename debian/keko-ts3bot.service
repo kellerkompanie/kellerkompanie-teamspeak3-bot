@@ -13,8 +13,65 @@ ExecStart=/usr/bin/keko-ts3bot --config /etc/keko-ts3bot/keko-ts3bot.yaml
 Restart=always
 RestartSec=10
 
-# Hardening
+# Filesystem hardening
+# - give the process its own /tmp so it cannot snoop on other services
 PrivateTmp=true
+# - make /home, /root, /run/user inaccessible
+ProtectHome=true
+# - mount /usr, /boot, /efi read-only
+ProtectSystem=strict
+# - make the entire filesystem read-only by default
+ReadOnlyPaths=/
+# - only allow writes to the bot's own data directory
+ReadWritePaths=/var/lib/keko-ts3bot
+
+# Privilege hardening
+# - prevent gaining new privileges via setuid, setgid, or caps
+NoNewPrivileges=true
+# - drop all Linux capabilities (bot needs none)
+CapabilityBoundingSet=
+# - do not grant any ambient capabilities
+AmbientCapabilities=
+
+# Kernel hardening
+# - deny write access to /proc/sys and /sys kernel tunables
+ProtectKernelTunables=true
+# - prevent loading or unloading kernel modules
+ProtectKernelModules=true
+# - deny access to kernel log buffer (/proc/kmsg, /dev/kmsg)
+ProtectKernelLogs=true
+
+# Resource isolation
+# - deny access to /sys/fs/cgroup control group hierarchy
+ProtectControlGroups=true
+# - prevent changing the system clock
+ProtectClock=true
+# - prevent changing the hostname
+ProtectHostname=true
+# - deny realtime scheduling (not needed for a network bot)
+RestrictRealtime=true
+# - prevent creating setuid/setgid files
+RestrictSUIDSGID=true
+# - lock the execution personality so it cannot be changed
+LockPersonality=true
+# - block writable-and-executable memory mappings (prevents shellcode injection)
+MemoryDenyWriteExecute=true
+# - clean up IPC objects when the service stops
+RemoveIPC=true
+# - deny access to physical devices (/dev), only allow /dev/null etc.
+PrivateDevices=true
+
+# Network hardening
+# - only allow IPv4 and IPv6 sockets (no Unix, Netlink, etc.)
+RestrictAddressFamilies=AF_INET AF_INET6
+# - run in a private user namespace
+PrivateUsers=true
+
+# Syscall hardening
+# - only allow syscalls typical for network services
+SystemCallFilter=@system-service
+# - block non-native syscall ABIs (e.g. 32-bit compat on 64-bit)
+SystemCallArchitectures=native
 
 [Install]
 WantedBy=multi-user.target

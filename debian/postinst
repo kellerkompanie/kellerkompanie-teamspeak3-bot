@@ -3,6 +3,7 @@ set -e
 
 DATA_DIR="/var/lib/keko-ts3bot"
 CONFIG_DIR="/etc/keko-ts3bot"
+CONFIG_FILE="$CONFIG_DIR/keko-ts3bot.yaml"
 
 case "$1" in
     configure)
@@ -21,22 +22,28 @@ case "$1" in
         # Create data directory
         mkdir -p "$DATA_DIR"
         chown teamspeak3bot:teamspeak3bot "$DATA_DIR"
+        chmod 750 "$DATA_DIR"
+
+        # Restrict config file - contains database and query credentials
+        chown root:teamspeak3bot "$CONFIG_FILE"
+        chmod 640 "$CONFIG_FILE"
 
         # Reload systemd daemon
         systemctl daemon-reload
 
-        # Enable and start the service
+        # Enable but do not start - config must be edited first
         systemctl enable keko-ts3bot
-        systemctl start keko-ts3bot
 
-        echo "Service started successfully!"
+        echo "Service enabled (not started - configure first)."
         echo ""
-        echo "Configuration: $CONFIG_DIR/keko-ts3bot.yaml"
-        echo "View logs: journalctl -u keko-ts3bot -f"
+        echo "Configuration: $CONFIG_FILE"
         echo ""
-        echo "IMPORTANT: Edit the configuration file and restart the service:"
-        echo "  sudo nano $CONFIG_DIR/keko-ts3bot.yaml"
-        echo "  sudo systemctl restart keko-ts3bot"
+        echo "  1. Edit the configuration file:"
+        echo "     sudo nano $CONFIG_FILE"
+        echo "  2. Start the service:"
+        echo "     sudo systemctl start keko-ts3bot"
+        echo "  3. View logs:"
+        echo "     journalctl -u keko-ts3bot -f"
         echo ""
         ;;
     abort-upgrade|abort-remove|abort-deconfigure)

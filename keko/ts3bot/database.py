@@ -1,5 +1,4 @@
-import random
-import string
+import secrets
 from datetime import datetime, timedelta
 
 import requests
@@ -55,8 +54,7 @@ class Database:
 
     @staticmethod
     def _generate_authkey() -> str:
-        alphabet = string.ascii_letters + string.digits
-        return ''.join(random.choice(alphabet) for _ in range(32))
+        return secrets.token_urlsafe(24)
 
     def _get_authkeys(self) -> list[str]:
         with Session(self._engine_teamspeak) as session:
@@ -106,4 +104,4 @@ class Database:
             session.commit()
 
         # call webpage to actually write the new squad.xml file
-        requests.get("https://kellerkompanie.com/profile.php?update_squad_xml=true")
+        requests.get("https://kellerkompanie.com/profile.php?update_squad_xml=true", timeout=10)

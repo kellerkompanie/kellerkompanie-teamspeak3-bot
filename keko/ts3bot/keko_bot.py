@@ -166,8 +166,8 @@ class TS3Bot:
         steam_id = self.database.get_steam_id(client.client_uid)
 
         if not self.database.has_squad_xml_entry(steam_id):
-            username_url = f"http://server.kellerkompanie.com:5000/username/{steam_id}"
-            nick = requests.get(username_url).text
+            username_url = f"https://server.kellerkompanie.com:5000/username/{steam_id}"
+            nick = requests.get(username_url, timeout=10).text
             if nick and len(nick) > 0:
                 self.database.create_squad_xml_entry(steam_id, nick)
 
@@ -175,8 +175,8 @@ class TS3Bot:
         assert self.ts3conn is not None
         stammspieler_sgid = await self.get_server_group_by_name("Stammspieler")
         steam_id = self.database.get_steam_id(client.client_uid)
-        stammspieler_url = f"http://server.kellerkompanie.com:5000/stammspieler/{steam_id}"
-        response = requests.get(stammspieler_url)
+        stammspieler_url = f"https://server.kellerkompanie.com:5000/stammspieler/{steam_id}"
+        response = requests.get(stammspieler_url, timeout=10)
         stammspieler_status = bool(json.loads(response.text)['stammspieler'])
 
         client_is_in_group = await self.is_client_in_group(client.client_id, "Stammspieler")
