@@ -83,7 +83,8 @@ def main() -> int:
     print()
     print(f"[2/2] Installing package on {host}...")
     install_cmd = (
-        f"sudo apt install --reinstall -f -y /tmp/{deb_filename} && "
+        f"sudo DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a "
+        f"apt install --reinstall -f -y /tmp/{deb_filename} && "
         f"rm /tmp/{deb_filename}"
     )
     if not run_command(

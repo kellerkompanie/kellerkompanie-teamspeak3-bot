@@ -63,8 +63,8 @@ RemoveIPC=true
 PrivateDevices=true
 
 # Network hardening
-# - only allow IPv4 and IPv6 sockets (no Unix, Netlink, etc.)
-RestrictAddressFamilies=AF_INET AF_INET6
+# - only allow IPv4, IPv6, and Unix sockets (MariaDB uses Unix sockets for localhost)
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 # - run in a private user namespace
 PrivateUsers=true
 
