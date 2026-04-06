@@ -1,3 +1,7 @@
+keko-ts3bot (2.1.1-1) trixie; urgency=medium
+  * Handle missing stammspieler key in API response gracefully
+ -- Schwaggot <schwaggot@kellerkompanie.com>  Mon, 06 Apr 2026 12:09:03 +0200
+
 keko-ts3bot (2.1.0-1) trixie; urgency=medium
   * Make backend API base URL configurable via api.base_url setting
  -- Schwaggot <schwaggot@kellerkompanie.com>  Mon, 06 Apr 2026 11:57:51 +0200
