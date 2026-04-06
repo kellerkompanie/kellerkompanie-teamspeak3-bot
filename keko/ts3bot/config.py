@@ -41,6 +41,12 @@ class DatabaseSettings(BaseModel):
     webpage: DatabaseCredentials = DatabaseCredentials(name="keko_webpage")
 
 
+class ApiSettings(BaseModel):
+    """Backend API settings."""
+
+    base_url: str = "http://localhost:5000"
+
+
 class MessagesSettings(BaseModel):
     """Message templates."""
 
@@ -57,6 +63,7 @@ class Settings(BaseSettings):
 
     ts3: TS3Settings = TS3Settings()
     database: DatabaseSettings = DatabaseSettings()
+    api: ApiSettings = ApiSettings()
     messages: MessagesSettings = MessagesSettings()
 
     @classmethod
