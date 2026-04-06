@@ -6,13 +6,9 @@ export DH_VERBOSE = 1
 	dh $@
 
 override_dh_auto_build:
-	# Create Python virtual environment and install package + PyInstaller
-	python3 -m venv build/venv
-	build/venv/bin/pip install --upgrade pip wheel
-	build/venv/bin/pip install .
-	build/venv/bin/pip install pyinstaller
-	# Build binary with PyInstaller
-	build/venv/bin/pyinstaller \
+	# Install Python and dependencies via uv, then build binary with PyInstaller
+	uv sync
+	uv run --with pyinstaller pyinstaller \
 		--onefile \
 		--log-level=WARN \
 		--name keko-ts3bot \
@@ -30,7 +26,7 @@ override_dh_auto_build:
 
 override_dh_auto_clean:
 	dh_auto_clean
-	rm -rf build/venv *.spec
+	rm -rf .venv *.spec
 
 override_dh_auto_test:
 	# Skip tests during package build

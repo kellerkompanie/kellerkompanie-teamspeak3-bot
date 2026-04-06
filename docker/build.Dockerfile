@@ -8,15 +8,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     debhelper \
     devscripts \
-    python3 \
-    python3-venv \
-    python3-pip \
     python3-dev \
     binutils \
     patchelf \
     libmariadb-dev \
+    curl \
     && rm -rf /var/lib/apt/lists/* \
     && ln -s /usr/bin/mariadb_config /usr/local/bin/mariadb_config
+
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 
 # Copy project files
 WORKDIR /build
