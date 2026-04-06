@@ -9,6 +9,9 @@ Type=simple
 User=teamspeak3bot
 Group=teamspeak3bot
 WorkingDirectory=/var/lib/keko-ts3bot
+# - point PyInstaller extraction to our own writable directory instead of /tmp
+#   prevents file-not-found errors from /tmp cleanup jobs (systemd-tmpfiles, tmpwatch)
+Environment=TMPDIR=/var/lib/keko-ts3bot
 ExecStart=/usr/bin/keko-ts3bot --config /etc/keko-ts3bot/keko-ts3bot.yaml
 Restart=always
 RestartSec=10

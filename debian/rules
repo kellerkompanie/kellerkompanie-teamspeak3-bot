@@ -8,6 +8,8 @@ export DH_VERBOSE = 1
 override_dh_auto_build:
 	# Install Python and dependencies via uv, then build binary with PyInstaller
 	uv sync
+	# Clear executable stack flag from libpython - kernel 6.12+ rejects it
+	find .venv $$(uv python dir) -name 'libpython*.so*' -exec patchelf --clear-execstack {} \;
 	uv run --with pyinstaller pyinstaller \
 		--onefile \
 		--log-level=WARN \

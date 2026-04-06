@@ -1,3 +1,8 @@
+keko-ts3bot (2.0.0-3) trixie; urgency=medium
+  * Clear executable stack flag from libpython via patchelf at build time
+  * Set TMPDIR to /var/lib/keko-ts3bot to prevent /tmp cleanup issues
+ -- Schwaggot <schwaggot@kellerkompanie.com>  Mon, 06 Apr 2026 11:35:45 +0200
+
 keko-ts3bot (2.0.0-2) trixie; urgency=medium
   * Fix shared library loading at runtime
  -- Schwaggot <schwaggot@kellerkompanie.com>  Mon, 06 Apr 2026 11:24:15 +0200
