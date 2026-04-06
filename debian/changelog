@@ -1,3 +1,7 @@
+keko-ts3bot (2.0.1-1) trixie; urgency=medium
+  * Fix query response handling: success responses were never signaled
+ -- Schwaggot <schwaggot@kellerkompanie.com>  Mon, 06 Apr 2026 11:52:02 +0200
+
 keko-ts3bot (2.0.0-4) trixie; urgency=medium
   * Allow AF_UNIX sockets for MariaDB localhost connections
  -- Schwaggot <schwaggot@kellerkompanie.com>  Mon, 06 Apr 2026 11:43:55 +0200

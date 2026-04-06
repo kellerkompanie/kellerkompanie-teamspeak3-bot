@@ -186,8 +186,8 @@ class TS3Connection:
 
         return parse_event(event_type, data)
 
-    def _parse_error(self, line: str) -> TS3QueryError | None:
-        """Parse error line and return exception if error, None if OK."""
+    def _parse_error(self, line: str) -> TS3QueryError:
+        """Parse error line. Always returns a TS3QueryError (id=0 means success)."""
         # Format: error id=X msg=Y
         parts = line.split(" ")
         error_id = 0
@@ -199,9 +199,7 @@ class TS3Connection:
             elif part.startswith("msg="):
                 error_msg = part[4:]
 
-        if error_id != 0:
-            return TS3QueryError(error_id, error_msg)
-        return None
+        return TS3QueryError(error_id, error_msg)
 
     async def _send(
         self,
