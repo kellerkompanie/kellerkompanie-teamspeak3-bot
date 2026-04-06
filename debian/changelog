@@ -1,3 +1,7 @@
+keko-ts3bot (2.0.0-2) trixie; urgency=medium
+  * Fix shared library loading at runtime
+ -- Schwaggot <schwaggot@kellerkompanie.com>  Mon, 06 Apr 2026 11:24:15 +0200
+
 keko-ts3bot (2.0.0-1) trixie; urgency=medium
   * Rewrite with async TS3 API, uv-based build
- -- Schwaggot <schwaggot@kellerkompanie.com>  Sun, 06 Apr 2026 12:00:00 +0200
+ -- Schwaggot <schwaggot@kellerkompanie.com>  Sun, 06 Apr 2026 11:05:47 +0200

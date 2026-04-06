@@ -54,8 +54,6 @@ RestrictRealtime=true
 RestrictSUIDSGID=true
 # - lock the execution personality so it cannot be changed
 LockPersonality=true
-# - block writable-and-executable memory mappings (prevents shellcode injection)
-MemoryDenyWriteExecute=true
 # - clean up IPC objects when the service stops
 RemoveIPC=true
 # - deny access to physical devices (/dev), only allow /dev/null etc.
