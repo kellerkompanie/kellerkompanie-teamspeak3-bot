@@ -1,7 +1,11 @@
-import json
-import logging
+"""TS3 event loop for the Kellerkompanie bot.
 
-import requests
+The bot is a thin TS3 client. All persistent state (account links,
+authkeys, welcome messages, squad.xml) lives in the
+kellerkompanie-webpage's keko_teamspeak DB and is reached only through
+the HTTP API in :mod:`keko.ts3bot.api_client`.
+"""
+import logging
 
 from keko.ts3api import (
     ClientEnteredEvent,
@@ -13,8 +17,8 @@ from keko.ts3api import (
     TS3Event,
     TS3QueryError,
 )
+from keko.ts3bot.api_client import WebpageApi
 from keko.ts3bot.config import Settings
-from keko.ts3bot.database import Database
 
 logger = logging.getLogger(__name__)
 
@@ -36,11 +40,10 @@ class TS3Bot:
         self.connected_clients: dict[int, Client] = {}
         self.ts3conn: TS3Connection | None = None
         self.client_id: int | None = None
-        self.database = Database(self._settings)
+        self.api = WebpageApi(settings)
 
     @property
     def ts3(self):
-        """Shortcut to TS3 settings."""
         return self._settings.ts3
 
     async def current_channel_id(self) -> int:
@@ -55,7 +58,6 @@ class TS3Bot:
         self.connected_clients[int(client_id)] = client
 
     async def on_event(self, event: TS3Event) -> None:
-        """Event handling method."""
         match event:
             case TextMessageEvent():
                 await self.on_text_message(event)
@@ -66,89 +68,72 @@ class TS3Bot:
             case ClientMovedEvent() | ClientMovedSelfEvent():
                 await self.on_client_moved(event)
             case _:
-                logger.debug(f"unhandled event: {event}")
+                logger.debug("unhandled event: %s", event)
 
     async def on_client_moved(self, event: ClientMovedEvent | ClientMovedSelfEvent) -> None:
         moved_client = self.get_client(event.client_id)
-        target_channel_id = event.target_channel_id
-        if target_channel_id == await self.current_channel_id():
-            self.on_client_moved_to_own_channel(moved_client)
+        if event.target_channel_id == await self.current_channel_id():
+            logger.debug("client entered own channel: %s", moved_client)
 
     async def on_text_message(self, event: TextMessageEvent) -> None:
         assert self.ts3conn is not None
         chat_partner = self.get_client(event.invoker_id)
+        if chat_partner.client_id == self.client_id:
+            return
 
-        # Prevent the client from sending messages to itself
-        if chat_partner.client_id != self.client_id:
-            if event.message.startswith("!hi"):
+        if event.message.startswith("!hi"):
+            await self.ts3conn.sendtextmessage(
+                targetmode=1, target=chat_partner.client_id,
+                msg=f"Hallo {chat_partner.client_name}!",
+            )
+        elif event.message.startswith("!link"):
+            url = self.api.request_link(chat_partner.client_uid)
+            if url is None:
                 await self.ts3conn.sendtextmessage(
-                    targetmode=1,
-                    target=chat_partner.client_id,
-                    msg=f"Hallo {chat_partner.client_name}!",
+                    targetmode=1, target=chat_partner.client_id,
+                    msg="Konnte gerade keinen Verknüpfungs-Link erzeugen, versuch es später nochmal.",
                 )
-            elif event.message.startswith("!edit"):
+            else:
                 await self.ts3conn.sendtextmessage(
-                    targetmode=1,
-                    target=chat_partner.client_id,
-                    msg="OK! Und los...",
-                )
-            elif event.message.startswith("!link"):
-                teamspeak_uid = chat_partner.client_uid
-                has_user_id = self.database.has_user_id(teamspeak_uid)
-                user_id = self.database.get_user_id(teamspeak_uid)
-                await self.ts3conn.sendtextmessage(
-                    targetmode=1,
-                    target=chat_partner.client_id,
-                    msg=f"has_user_id: {has_user_id}",
-                )
-                await self.ts3conn.sendtextmessage(
-                    targetmode=1,
-                    target=chat_partner.client_id,
-                    msg=f"user_id: {user_id}",
-                )
-                authkey_link = self.database.generate_authkey(teamspeak_uid)
-                await self.ts3conn.sendtextmessage(
-                    targetmode=1,
-                    target=chat_partner.client_id,
-                    msg=authkey_link,
+                    targetmode=1, target=chat_partner.client_id, msg=url,
                 )
 
     async def on_client_entered(self, event: ClientEnteredEvent) -> None:
         assert self.ts3conn is not None
-        client_name = event.client_name
-        client_uid = event.client_uid
-        client_id = event.client_id
-        client_dbid = event.client_dbid
         client = Client(
-            client_id=client_id,
-            client_uid=client_uid,
-            client_name=client_name,
-            client_dbid=client_dbid,
+            client_id=event.client_id,
+            client_uid=event.client_uid,
+            client_name=event.client_name,
+            client_dbid=event.client_dbid,
         )
-        self.set_client(client_id, client)
-
+        self.set_client(client.client_id, client)
         logger.info("client entered: %s", client)
 
-        if await self.is_guest(client_id):
-            message = self.database.get_guest_welcome_message()
-            await self.ts3conn.sendtextmessage(targetmode=1, target=client_id, msg=message)
-        elif not self.database.has_user_id(client_uid):
+        if await self.is_guest(client.client_id):
+            message = self.api.get_guest_welcome()
+            if message:
+                await self.ts3conn.sendtextmessage(
+                    targetmode=1, target=client.client_id, msg=message,
+                )
+            return
+
+        account = self.api.get_account_by_uid(client.client_uid)
+        if account is None:
             await self.send_link_account_message(client)
-        else:
-            await self.update_squad_xml_entry(client)
-            await self.update_stammspieler_status(client)
+            return
+
+        self.api.ensure_squad_xml_entry(client.client_uid)
+        await self.update_stammspieler_status(client, account)
 
     async def is_guest(self, client_id: int) -> bool:
-        return await self.is_client_in_group(client_id, 'Guest')
+        return await self.is_client_in_group(client_id, "Guest")
 
     async def get_server_group_by_name(self, group_name: str) -> int:
         assert self.ts3conn is not None
         server_groups = await self.ts3conn.servergrouplist()
-
         for server_group in server_groups:
-            if server_group['type'] == '1' and server_group['name'] == group_name:
-                return int(server_group['sgid'])
-
+            if server_group["type"] == "1" and server_group["name"] == group_name:
+                return int(server_group["sgid"])
         raise ValueError(f"No group found for name '{group_name}'")
 
     async def is_client_in_group(self, client_id: int, group_name: str) -> bool:
@@ -159,64 +144,40 @@ class TS3Bot:
     async def get_client_groups(self, client_id: int) -> list[int]:
         assert self.ts3conn is not None
         client_info = await self.ts3conn.clientinfo(client_id)
-        client_group_ids = [int(x) for x in client_info['client_servergroups'].split(',')]
-        return client_group_ids
+        return [int(x) for x in client_info["client_servergroups"].split(",")]
 
-    async def update_squad_xml_entry(self, client: Client) -> None:
-        steam_id = self.database.get_steam_id(client.client_uid)
-
-        if not self.database.has_squad_xml_entry(steam_id):
-            username_url = f"{self._settings.api.base_url}/username/{steam_id}"
-            nick = requests.get(username_url, timeout=10).text
-            if nick and len(nick) > 0:
-                self.database.create_squad_xml_entry(steam_id, nick)
-
-    async def update_stammspieler_status(self, client: Client) -> None:
+    async def update_stammspieler_status(self, client: Client, account) -> None:
         assert self.ts3conn is not None
+        status = self.api.is_stammspieler(account.steam_id)
+        if status is None:
+            # API unreachable / unknown - skip, do not assume False.
+            return
+
         stammspieler_sgid = await self.get_server_group_by_name("Stammspieler")
-        steam_id = self.database.get_steam_id(client.client_uid)
-        stammspieler_url = f"{self._settings.api.base_url}/stammspieler/{steam_id}"
-        response = requests.get(stammspieler_url, timeout=10)
-        data = json.loads(response.text)
-        if 'stammspieler' not in data:
-            logger.warning("'stammspieler' key missing from API response for %s (url: %s), defaulting to False", steam_id, stammspieler_url)
-            await self.ts3conn.sendtextmessage(
-                targetmode=1,
-                target=client.client_id,
-                msg=(
-                    f"Hallo {client.client_name}, dein Stammspieler-Status konnte leider "
-                    f"nicht ermittelt werden. Falls dein Status nicht korrekt ist, "
-                    f"entschuldige bitte - wir arbeiten daran!"
-                ),
-            )
-        stammspieler_status = bool(data.get('stammspieler', False))
+        in_group = await self.is_client_in_group(client.client_id, "Stammspieler")
 
-        client_is_in_group = await self.is_client_in_group(client.client_id, "Stammspieler")
-
-        if stammspieler_status and not client_is_in_group:
+        if status and not in_group:
             logger.info("adding user %s to server group stammspieler", client.client_name)
             await self.ts3conn.servergroupaddclient(sgid=stammspieler_sgid, cldbid=client.client_dbid)
-        elif not stammspieler_status and client_is_in_group:
+        elif not status and in_group:
             logger.info("removing user %s from server group stammspieler", client.client_name)
             await self.ts3conn.servergroupdelclient(sgid=stammspieler_sgid, cldbid=client.client_dbid)
 
     async def on_client_left(self, event: ClientLeftEvent) -> None:
-        client_id = event.client_id
-        client = self.get_client(client_id)
-        del self.connected_clients[int(client_id)]
+        client = self.get_client(event.client_id)
+        del self.connected_clients[int(event.client_id)]
         logger.info("client left: %s", client)
-
-    @staticmethod
-    def on_client_moved_to_own_channel(client: Client) -> None:
-        logger.debug("client entered own channel: %s", client)
 
     async def send_link_account_message(self, client: Client) -> None:
         assert self.ts3conn is not None
-        authkey_link = self.database.generate_authkey(client.client_uid)
+        url = self.api.request_link(client.client_uid)
+        if url is None:
+            logger.warning("could not mint authkey for %s; skipping link PM", client)
+            return
         message = (
-            f"Hallo {client.client_name}! Deine Teamspeak Identität ist nicht mit der "
-            f"Kellerkompanie Webseite verknüpft. Klicke auf folgenden Link um die Accounts "
-            f"zu verknüpfen:\n\n{authkey_link}"
+            f"Hallo {client.client_name}! Deine TeamSpeak-Identität ist nicht mit der "
+            f"Kellerkompanie-Webseite verknüpft. Klicke auf folgenden Link, um die Accounts "
+            f"zu verknüpfen:\n\n{url}"
         )
         await self.ts3conn.sendtextmessage(targetmode=1, target=client.client_id, msg=message)
 
@@ -227,39 +188,29 @@ class TS3Bot:
         async with TS3Connection(self.ts3.host, self.ts3.port) as conn:
             self.ts3conn = conn
 
-            # Login with query credentials
             await conn.login(self.ts3.user, self.ts3.password)
-
-            # Choose a virtual server
             await conn.use(self.ts3.server_id)
 
-            # Find the channel to move the query client to
             channels = await conn.channelfind(pattern=self.ts3.default_channel)
             channel = int(channels[0]["cid"])
 
-            # Give the Query Client a name
             try:
                 await conn.clientupdate(client_nickname=self.ts3.nickname)
             except TS3QueryError:
                 pass
 
-            # Find own client id
             whoami = await conn.whoami()
             self.client_id = int(whoami["client_id"])
 
-            # Iterate through all currently connected clients
             logger.info("currently connected clients:")
             for client_data in await conn.clientlist():
                 client_id = int(client_data["clid"])
-                client_name = client_data["client_nickname"]
                 client_info = await conn.clientinfo(client_id)
-                client_uid = client_info["client_unique_identifier"]
-                client_dbid = int(client_info["client_database_id"])
                 client = Client(
                     client_id=client_id,
-                    client_uid=client_uid,
-                    client_name=client_name,
-                    client_dbid=client_dbid,
+                    client_uid=client_info["client_unique_identifier"],
+                    client_name=client_data["client_nickname"],
+                    client_dbid=int(client_info["client_database_id"]),
                 )
                 self.set_client(client_id, client)
                 logger.info("  %s", client)
@@ -267,28 +218,24 @@ class TS3Bot:
                 if client_id == self.client_id:
                     continue
 
-                if await self.is_guest(client_id):
-                    message = self.database.get_guest_welcome_message()
-                    await conn.sendtextmessage(targetmode=1, target=client_id, msg=message)
-                elif not self.database.has_user_id(client_uid):
-                    await self.send_link_account_message(client=client)
-                else:
-                    await self.update_squad_xml_entry(client=client)
-                    await self.update_stammspieler_status(client=client)
+                # Do NOT send welcome / link-account PMs on startup - those should
+                # only fire on a genuine ClientEnteredEvent. We still refresh
+                # stammspieler group membership silently for already-linked users.
+                if not await self.is_guest(client_id):
+                    account = self.api.get_account_by_uid(client.client_uid)
+                    if account is not None:
+                        self.api.ensure_squad_xml_entry(client.client_uid)
+                        await self.update_stammspieler_status(client, account)
 
-            # Move the Query client
             await conn.clientmove(channel, self.client_id)
 
-            # Register for events
             await conn.register_for_server_events()
             await conn.register_for_server_messages()
             await conn.register_for_channel_events(channel_id=channel)
             await conn.register_for_channel_messages()
             await conn.register_for_private_messages()
 
-            # Start keepalive
             await conn.start_keepalive()
 
-            # Event loop
             async for event in conn.events():
                 await self.on_event(event)

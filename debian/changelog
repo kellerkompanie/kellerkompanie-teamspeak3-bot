@@ -1,3 +1,7 @@
+keko-ts3bot (3.0.0-1) trixie; urgency=medium
+  * Rewrite for new webpage API
+ -- Schwaggot <schwaggot@kellerkompanie.com>  Mon, 18 May 2026 20:48:44 +0200
+
 keko-ts3bot (2.1.1-1) trixie; urgency=medium
   * Handle missing stammspieler key in API response gracefully
  -- Schwaggot <schwaggot@kellerkompanie.com>  Mon, 06 Apr 2026 12:09:03 +0200

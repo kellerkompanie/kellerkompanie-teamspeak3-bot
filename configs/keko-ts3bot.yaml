@@ -6,58 +6,32 @@
 # TeamSpeak 3 Server Query Connection
 # -----------------------------------------------------------------------------
 ts3:
-  # Hostname or IP address of the TeamSpeak 3 server
   host: "127.0.0.1"
-
-  # ServerQuery port (default: 10011 for raw, 10022 for SSH)
   port: 10011
-
-  # ServerQuery login username
   user: "kellerkompanie-root"
-
-  # ServerQuery login password
   password: "password"
-
-  # Bot display name shown in TeamSpeak
   nickname: "Kellerkompanie Bot"
-
-  # Channel the bot moves to after connecting (exact channel name)
   default_channel: "TechSupport / RapeDungeon"
-
-  # Virtual server ID to connect to (usually 1)
   server_id: 1
 
 # -----------------------------------------------------------------------------
-# Database Configuration
+# Webpage API
 # -----------------------------------------------------------------------------
-database:
-  # TeamSpeak database - stores account links, auth keys, and messages
-  teamspeak:
-    host: "localhost"
-    name: "keko_teamspeak"
-    username: "keko_teamspeak"
-    password: "password"
-
-  # Webpage database - used for Squad XML roster synchronization
-  webpage:
-    host: "localhost"
-    name: "keko_webpage"
-    username: "keko_webpage"
-    password: "password"
-
-# -----------------------------------------------------------------------------
-# Backend API
-# -----------------------------------------------------------------------------
+# All persistent state (account links, authkeys, welcome messages, squad.xml)
+# lives in the kellerkompanie-webpage. The bot is a thin TS3 client and reaches
+# the webpage exclusively through /teamspeak/* HTTP endpoints.
 api:
-  # Base URL for the Kellerkompanie backend API
-  base_url: "http://localhost:5000"
+  # Base URL of the kellerkompanie-webpage instance.
+  base_url: "http://localhost:8000"
 
-# -----------------------------------------------------------------------------
-# Message Templates
-# -----------------------------------------------------------------------------
-messages:
-  # Welcome message sent to new guest users when they connect
-  guest_welcome: |
-    Herzlich Willkommen auf dem Kellerkompanie Teamspeak!
+  # Shared bearer token. MUST match `ts3bot_api_token` in the webpage's
+  # keko-webpage.yaml. Rotate by updating both sides simultaneously.
+  token: "change-me"
 
-    Wenn du neu hier bist, setze dich einfach in den Channel "Ich bin neu hier, bitte helft mir!" und warte geduldig bis jemand zu dir kommt. Deine aktuelle Gruppe ist "Guest" und hat nur eingeschränkte Rechte, bspw. kannst du Leute anschreiben, aber nicht anstupsen.
+  # Request timeout in seconds for any single API call.
+  timeout: 10.0
+
+  # The guest-welcome message is fetched from the webpage admin UI on demand.
+  # Cache it for this many seconds to avoid hammering the webpage every time
+  # a guest connects.
+  guest_welcome_cache_seconds: 300.0

@@ -20,37 +20,20 @@ class TS3Settings(BaseModel):
     server_id: int = 1
 
 
-class DatabaseCredentials(BaseModel):
-    """Database connection credentials."""
-
-    host: str = "localhost"
-    name: str = "database"
-    username: str = "username"
-    password: str = "password"
-
-    @property
-    def url(self) -> str:
-        """Build MariaDB connection URL."""
-        return f"mariadb+mariadbconnector://{self.username}:{self.password}@{self.host}/{self.name}"
-
-
-class DatabaseSettings(BaseModel):
-    """Database settings for both teamspeak and webpage databases."""
-
-    teamspeak: DatabaseCredentials = DatabaseCredentials(name="keko_teamspeak")
-    webpage: DatabaseCredentials = DatabaseCredentials(name="keko_webpage")
-
-
 class ApiSettings(BaseModel):
-    """Backend API settings."""
+    """Backend API settings.
 
-    base_url: str = "http://localhost:5000"
+    The bot is a thin TS3 client. All persistent state (account links,
+    authkeys, welcome messages) lives in the webpage's keko_teamspeak DB
+    and is reached exclusively through the HTTP API documented in
+    kellerkompanie-webpage/API.md (formerly REQ.md).
+    """
 
-
-class MessagesSettings(BaseModel):
-    """Message templates."""
-
-    guest_welcome: str = "Welcome!"
+    base_url: str = "http://localhost:8000"
+    token: str = "change-me"
+    timeout: float = 10.0
+    # How long to cache the guest-welcome message between API fetches.
+    guest_welcome_cache_seconds: float = 300.0
 
 
 class Settings(BaseSettings):
@@ -62,9 +45,7 @@ class Settings(BaseSettings):
     )
 
     ts3: TS3Settings = TS3Settings()
-    database: DatabaseSettings = DatabaseSettings()
     api: ApiSettings = ApiSettings()
-    messages: MessagesSettings = MessagesSettings()
 
     @classmethod
     def from_yaml(cls, path: Path) -> Self:

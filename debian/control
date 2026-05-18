@@ -2,14 +2,14 @@ Source: keko-ts3bot
 Section: net
 Priority: optional
 Maintainer: Schwaggot <schwaggot@kellerkompanie.com>
-Build-Depends: debhelper-compat (= 13), python3-dev, binutils, patchelf, libmariadb-dev
+Build-Depends: debhelper-compat (= 13), python3-dev, binutils, patchelf
 Standards-Version: 4.6.0
 Homepage: https://github.com/kellerkompanie/kellerkompanie-teamspeak3-bot
 Rules-Requires-Root: no
 
 Package: keko-ts3bot
 Architecture: amd64
-Depends: ${misc:Depends}, ${shlibs:Depends}, libmariadb3
+Depends: ${misc:Depends}, ${shlibs:Depends}
 Description: TeamSpeak 3 bot for Kellerkompanie
  An async TeamSpeak 3 bot that bridges TS3 server with web backend,
  managing user authentication, role synchronization, and player roster updates.

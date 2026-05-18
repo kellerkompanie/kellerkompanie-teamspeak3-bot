@@ -1,36 +1,57 @@
 # kellerkompanie-ts3bot
 
-This project is an automated bot for TeamSpeak 3 that connects the Kellerkompanie backend with TeamSpeak.
+Automated TeamSpeak 3 bot that bridges the Kellerkompanie TS3 server with the
+[kellerkompanie-webpage](https://github.com/kellerkompanie/kellerkompanie-webpage)
+backend.
 
 ## What does the bot do?
 
 The bot connects to the TeamSpeak 3 ServerQuery interface and reacts to server events:
 
-- **Client joins**: Greets guest users with a configurable welcome message. For registered users whose TeamSpeak
-  identity is not yet linked to the website, it generates a one-time auth key and sends a link to connect the accounts.
-- **Account linking**: Users can request a new link via the `!link` command in a private message to the bot.
-- **Squad XML**: Automatically creates Squad XML roster entries for linked users by looking up their username from the
-  backend API.
-- **Stammspieler status**: Checks the backend API for each linked user's "Stammspieler" (regular player) status and adds
-  or removes the corresponding TeamSpeak server group.
-- **Chat commands**: Responds to `!hi`, `!edit`, and `!link` in private messages.
+- **Client joins**: greets guest users with the admin-configured welcome message
+  fetched from the webpage. For registered users whose TS identity is not yet
+  linked to the website, it asks the webpage to mint a one-time authkey and PMs
+  the resulting link.
+- **Account linking**: users can request a fresh link via `!link` in a PM. The
+  bot does not generate authkeys itself; the webpage owns the
+  `keko_teamspeak.teamspeak_authkeys` table and returns a ready-to-use URL.
+- **Squad XML**: on join, asks the webpage to add a `squad_xml_entries` row for
+  the linked user. The webpage resolves the display name and regenerates the
+  on-disk `squad.xml` as a background task.
+- **Stammspieler status**: queries the webpage for each linked user's
+  Stammspieler status and adds or removes the corresponding TS server group.
+- **Chat commands**: `!hi` and `!link` in private messages.
 
-The bot uses two MariaDB databases - one for TeamSpeak account data (links, auth keys, messages) and one for the
-website (Squad XML entries).
+## Architecture
+
+The bot is a thin TS3 client. **It has no database connection.** All persistent
+state (account links, authkeys, welcome messages, squad.xml roster) lives in
+the webpage's `keko_teamspeak` database and is reached only through
+`/teamspeak/*` HTTP endpoints documented in the webpage repo.
+
+```
+TeamSpeak 3 server ─── ServerQuery ───┐
+                                      │
+                                  keko-ts3bot ──── HTTP (Bearer token) ───→ kellerkompanie-webpage
+                                                                                   │
+                                                                                   ▼
+                                                                            keko_teamspeak DB
+                                                                            keko_webpage DB
+```
+
+All API calls are best-effort: network errors are logged at WARNING and the
+affected action is skipped. The bot never crashes on a webpage outage.
 
 ## Chat commands
 
-Users can send the following commands to the bot via private message:
-
-| Command | Description                                                                                               |
-|---------|-----------------------------------------------------------------------------------------------------------|
-| `!hi`   | Bot replies with a greeting                                                                               |
-| `!link` | Generates a one-time auth key and sends a link to connect the TeamSpeak identity with the website account |
-| `!edit` | Responds with a confirmation message                                                                      |
+| Command | Description                                                                                                                |
+|---------|----------------------------------------------------------------------------------------------------------------------------|
+| `!hi`   | Bot replies with a greeting                                                                                                |
+| `!link` | Asks the webpage to mint a fresh authkey and PMs the user the link to connect their TS identity with their website account |
 
 ## Configuration
 
-The configuration file is in YAML format. On deployed systems the default location is:
+YAML. On deployed systems the default path is:
 
 ```
 /etc/keko-ts3bot/keko-ts3bot.yaml
@@ -50,60 +71,50 @@ For local development it is loaded from `configs/keko-ts3bot.yaml`.
 | `default_channel` | `Botchannel`         | Channel the bot moves to after connecting |
 | `server_id`       | `1`                  | Virtual server ID                         |
 
-### `database` - MariaDB connections
+### `api` - Webpage API
 
-Two databases are configured under `database.teamspeak` and `database.webpage`, each with:
+| Key                           | Default                 | Description                                                                          |
+|-------------------------------|-------------------------|--------------------------------------------------------------------------------------|
+| `base_url`                    | `http://localhost:8000` | Base URL of the kellerkompanie-webpage instance                                      |
+| `token`                       | `change-me`             | Bearer token. **Must match** `ts3bot_api_token` in the webpage's `keko-webpage.yaml` |
+| `timeout`                     | `10.0`                  | Request timeout in seconds for every API call                                        |
+| `guest_welcome_cache_seconds` | `300.0`                 | How long to cache the guest-welcome message between fetches                          |
 
-| Key        | Default                           | Description       |
-|------------|-----------------------------------|-------------------|
-| `host`     | `localhost`                       | Database host     |
-| `name`     | `keko_teamspeak` / `keko_webpage` | Database name     |
-| `username` | `username`                        | Database user     |
-| `password` | `password`                        | Database password |
+Generate a fresh token with:
 
-### `api` - Backend API
+```
+uv run python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
 
-| Key        | Default                 | Description                                |
-|------------|-------------------------|--------------------------------------------|
-| `base_url` | `http://localhost:5000` | Base URL of the Kellerkompanie backend API |
-
-### `messages` - Message templates
-
-| Key             | Default    | Description                                    |
-|-----------------|------------|------------------------------------------------|
-| `guest_welcome` | `Welcome!` | Welcome message sent to guest users on connect |
+and paste the same value into both YAML files.
 
 ### Environment variable overrides
 
-All settings can be overridden via environment variables using the prefix `KEKO_` and double underscores for nesting.
-For example:
+All settings can be overridden via environment variables using prefix `KEKO_`
+and double underscores for nesting:
 
 ```
 KEKO_TS3__HOST=192.168.1.10
-KEKO_DATABASE__TEAMSPEAK__PASSWORD=secret
-KEKO_API__BASE_URL=http://10.0.0.5:5000
+KEKO_API__BASE_URL=https://kellerkompanie.com
+KEKO_API__TOKEN=...
 ```
 
 ## Development
 
 ### Prerequisites
 
-* [uv](https://docs.astral.sh/uv/) (Python package manager)
-* Python 3.14 or higher (uv will install it automatically if missing)
-* MariaDB client libraries (`libmariadb-dev` on Debian/Ubuntu, `mariadb-connector-c` on macOS via Homebrew)
+* [uv](https://docs.astral.sh/uv/)
+* Python 3.14 or higher (uv installs it automatically)
+
+No native dependencies. The bot is pure Python over HTTP.
 
 ### Setup
 
-Clone the repository and install all dependencies:
-
 ```
 git clone <repo-url>
-cd kellerkompanie-teamspeak3-bot
+cd kellerkompanie-ts3bot
 uv sync
 ```
-
-This creates a virtual environment in `.venv/` and installs the project in editable mode with all dependencies locked
-via `uv.lock`.
 
 ### Running
 
@@ -125,5 +136,27 @@ uv lock --upgrade       # upgrade all dependencies
 To build a `.deb` package for deployment:
 
 ```
-uv run scripts/build_deb.py
+python scripts/build_deb.py
 ```
+
+Requires Docker. Output is written to `dist/keko-ts3bot_<version>-1_amd64.deb`.
+
+## Deployment
+
+On the target Debian/Ubuntu host:
+
+```
+sudo dpkg -i dist/keko-ts3bot_*.deb
+sudo apt install -f      # resolve any leftover deps
+sudo nano /etc/keko-ts3bot/keko-ts3bot.yaml   # set ts3 + api.token
+sudo systemctl start keko-ts3bot
+journalctl -u keko-ts3bot -f
+```
+
+The bot needs network reach to:
+
+- the TS3 ServerQuery port (`ts3.host:ts3.port`)
+- the webpage instance (`api.base_url`)
+
+It does **not** need MariaDB credentials anymore; remove them from any older
+config you migrate from.

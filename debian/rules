@@ -17,13 +17,6 @@ override_dh_auto_build:
 		--collect-submodules=keko \
 		--collect-submodules=pydantic \
 		--collect-submodules=pydantic_settings \
-		--collect-submodules=sqlalchemy \
-		--collect-submodules=mariadb \
-		--hidden-import=mariadb \
-		--exclude-module=pysqlite2 \
-		--exclude-module=MySQLdb \
-		--exclude-module=psycopg2 \
-		--exclude-module=cx_Oracle \
 		keko/ts3bot/main.py
 
 override_dh_auto_clean:
